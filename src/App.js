@@ -1,5 +1,7 @@
 import React, { Component } from 'react';
 //import logo from './logo.svg';
+import { sortBy } from 'lodash';
+import classNames from 'classnames';
 import axios from 'axios';
 import './App.css';
 
@@ -39,6 +41,34 @@ const PARAM_SEARCH = 'query=';
 const PARAM_PAGE = 'page=';
 const PARAM_HPP = 'hitsPerPage=';
 
+const SORTS = {
+    NONE: list => list,
+    TITLE: list => sortBy(list, 'title'),
+    AUTHOR: list => sortBy(list, 'author'),
+    COMMENTS: list => sortBy(list, 'num_comments').reverse(),
+    POINTS: list => sortBy(list, 'points').reverse()
+};
+
+const updateSearchTopStoriesState = (hits, page) => (prevState) => {
+    const { searchKey, results } = prevState;
+
+    const oldHits = results && results[searchKey]
+        ? results[searchKey].hits
+        : [];
+
+    const updatedHits = [ ...oldHits, ...hits ];
+
+
+    //this.setState({ result });
+    return {
+        results: {
+            ...results,
+            [searchKey]: {hits: updatedHits, page}
+        },
+        isLoading: false
+    }
+};
+
 // function isSearched(searchTerm) {
 //     return function (item) {
 //         return item.title.toLowerCase().includes(searchTerm.toLowerCase());
@@ -56,7 +86,8 @@ class App extends Component {
         results: null,
         searchKey: '',
         searchTerm: DEFAULT_QUERY,
-        error: null
+        error: null,
+        isLoading: false
       };
 
       this.needsToSearchTopStories = this.needsToSearchTopStories.bind(this);
@@ -65,31 +96,49 @@ class App extends Component {
       this.fetchSearchTopStories = this.fetchSearchTopStories.bind(this);
       this.onDismiss = this.onDismiss.bind(this);
       this.onSearchChange = this.onSearchChange.bind(this);
+      //this.onSort = this.onSort.bind(this);
     }
+
+    // onSort(sortKey) {
+    //     const isSortReverse = this.state.sortKey === sortKey && !this.state.isSortReverse;
+    //     this.setState({ sortKey, isSortReverse });
+    // }
 
     needsToSearchTopStories(searchTerm) {
         return !this.state.results[searchTerm];
     }
 
+    // setSearchTopStories(result) {
+    //
+    //     const { hits, page } = result;
+    //
+    //     this.setState(prevState => {
+    //         const { searchKey, results } = prevState;
+    //
+    //         const oldHits = results && results[searchKey]
+    //             ? results[searchKey].hits
+    //             : [];
+    //
+    //         const updatedHits = [ ...oldHits, ...hits ];
+    //
+    //
+    //         //this.setState({ result });
+    //         return {
+    //             results: {
+    //                 ...results,
+    //                 [searchKey]: {hits: updatedHits, page}
+    //             },
+    //             isLoading: false
+    //         }
+    //     });
+    //
+    // }
+
     setSearchTopStories(result) {
 
         const { hits, page } = result;
-        const { searchKey, results } = this.state;
 
-        const oldHits = results && results[searchKey]
-            ? results[searchKey].hits
-            : [];
-
-        const updatedHits = [ ...oldHits, ...hits ];
-
-
-        //this.setState({ result });
-        this.setState({
-            results: {
-                ...results,
-                [searchKey]: { hits: updatedHits, page }
-            }
-        });
+        this.setState(updateSearchTopStoriesState(hits, page))
 
     }
 
@@ -97,6 +146,9 @@ class App extends Component {
         //fetch(`${ PATH_BASE }${ PATH_SEARCH }?${ PARAM_SEARCH }${ searchTerm }&${ PARAM_PAGE }${ page }&${ PARAM_HPP }${ DEFAULT_HPP }`)
         //.then(response => response.json())
         //.then(result => this.setSearchTopStories(result))
+
+        this.setState({ isLoading: true });
+
         axios(`${ PATH_BASE }${ PATH_SEARCH }?${ PARAM_SEARCH }${ searchTerm }&${ PARAM_PAGE }${ page }&${ PARAM_HPP }${ DEFAULT_HPP }`)
             .then(result => this._isMounted && this.setSearchTopStories(result.data))
             .catch(error => this._isMounted && this.setState({ error }));
@@ -151,7 +203,13 @@ class App extends Component {
 
   render() {
 
-    const { searchTerm, results, searchKey, error } = this.state;
+    const {
+        searchTerm,
+        results,
+        searchKey,
+        error,
+        isLoading
+    } = this.state;
     //console.log(this.state);
 
     const page = (
@@ -188,9 +246,12 @@ class App extends Component {
               />
           }
           <div className="interactions">
-              <Button onClick={ () => this.fetchSearchTopStories(searchKey, page + 1) }>
-                  Больше историй
-              </Button>
+              <ButtonWithLoading
+                  isLoading = { isLoading }
+                  onClick={ () => this.fetchSearchTopStories(searchKey, page + 1) }
+              >
+                      Больше историй
+              </ButtonWithLoading>
           </div>
       </div>
     );
@@ -198,60 +259,165 @@ class App extends Component {
 }
 
 
-const Search = ({ value, onChange, onSubmit, children }) =>
-    <form onSubmit={ onSubmit }>
-        <input
-            type="text"
-            value={ value }
-            onChange={ onChange }
-        />
-        <button type="submit">
+const Search = ({ value, onChange, onSubmit, children }) => {
+
+    let input;
+
+    return (
+        <form onSubmit={ onSubmit }>
+            <input
+                type="text"
+                value={ value }
+                onChange={ onChange }
+                ref={ (node) => input = node }
+            />
+            <button type="submit">
+                { children }
+            </button>
+        </form>
+    );
+};
+
+// class Search extends Component {
+//
+//     componentDidMount() {
+//         if (this.input) {
+//             this.input.focus();
+//         }
+//     }
+//
+//     render() {
+//
+//         const { value, onChange, onSubmit, children } = this.props;
+//
+//         return (
+//             <form onSubmit={ onSubmit }>
+//                 <input
+//                     type="text"
+//                     value={ value }
+//                     onChange={ onChange }
+//                     ref={ (node) => { this.input = node; } }
+//                 />
+//                 <button type="submit">
+//                     { children }
+//                 </button>
+//             </form>
+//         );
+//     }
+// }
+
+class Table extends Component {
+
+    constructor(props) {
+        super(props);
+
+        this.state = {
+            sortKey: 'NONE',
+            isSortReverse: false
+        };
+
+        this.onSort = this.onSort.bind(this);
+    }
+
+    onSort(sortKey) {
+        const isSortReverse = this.state.sortKey === sortKey && !this.state.isSortReverse;
+        this.setState({ sortKey, isSortReverse });
+    }
+
+    render() {
+
+        const { list, onDismiss } = this.props;
+
+        const { sortKey, isSortReverse } = this.state;
+
+        const sortedList = SORTS[sortKey](list);
+
+        const reverseSortedList = isSortReverse
+            ? sortedList.reverse()
+            : sortedList;
+
+        return (
+            <div className="table">
+                <div className="table-header">
+                    <span style={{width: '40%'}}>
+                        <Sort
+                            sortKey={ 'TITLE' }
+                            onSort={ this.onSort }
+                            activeSortKey={ sortKey }
+                        >
+                            Заголовок
+                        </Sort>
+                    </span>
+                            <span style={{width: '30%'}}>
+                        <Sort
+                            sortKey={ 'AUTHOR' }
+                            onSort={ this.onSort }
+                            activeSortKey={ sortKey }
+                        >
+                            Автор
+                        </Sort>
+                    </span>
+                            <span style={{width: '10%'}}>
+                        <Sort
+                            sortKey={ 'COMMENTS' }
+                            onSort={ this.onSort }
+                            activeSortKey={ sortKey }
+                        >
+                            Комментарии
+                        </Sort>
+                    </span>
+                            <span style={{width: '10%'}}>
+                        <Sort
+                            sortKey={ 'POINTS' }
+                            onSort={ this.onSort }
+                            activeSortKey={ sortKey }
+                        >
+                            Очки
+                        </Sort>
+                    </span>
+                            <span style={{width: '10%'}}>
+                        Архив
+                    </span>
+                </div>
+                { reverseSortedList.map(item =>
+                    <div key={ item.objectID } className="table-row">
+                        <span style={{width: '40%'}}>
+                          <a href={ item.url }>{ item.title }</a>
+                        </span>
+                        <span style={{width: '30%'}}>{ item.author }</span>
+                        <span style={{width: '10%'}}>{ item.num_comments }</span>
+                        <span style={{width: '10%'}}>{ item.points }</span>
+                        <span style={{width: '10%'}}>
+                            <Button
+                                onClick={() => onDismiss(item.objectID)}
+                                className="button-inline"
+                            >
+                                Отбросить
+                            </Button>
+                        </span>
+                    </div>
+                ) }
+            </div>
+        );
+    }
+}
+
+const Sort = ({ sortKey, activeSortKey, onSort, children }) => {
+
+    const sortClass = classNames(
+        'button-inline',
+        { 'button-active': sortKey === activeSortKey }
+    );
+
+    return (
+        <Button
+            onClick={ () => onSort(sortKey) }
+            className={ sortClass }
+        >
             { children }
-        </button>
-    </form>;
-
-const Table = ({ list, pattern, onDismiss }) =>
-    <div className="table">
-    { list.map( item  =>
-        <div key={ item.objectID } className="table-row">
-            <span style={{ width: '40%' }}>
-              <a href={ item.url }>{ item.title }</a>
-            </span>
-            <span style={{ width: '30%' }}>{ item.author }</span>
-            <span style={{ width: '10%' }}>{ item.num_comments }</span>
-            <span style={{ width: '10%' }}>{ item.points }</span>
-            <span style={{ width: '10%' }}>
-                <Button
-                    onClick={() => onDismiss(item.objectID)}
-                    className="button-inline"
-                >
-                    Отбросить
-                </Button>
-            </span>
-        </div>
-    ) }
-    </div>;
-
-{/*<div className="table">*/}
-    {/*{ list.filter(isSearched(pattern)).map( item  =>*/}
-        {/*<div key={ item.objectID } className="table-row">*/}
-            {/*<span style={{ width: '40%' }}>*/}
-              {/*<a href={ item.url }>{ item.title }</a>*/}
-            {/*</span>*/}
-            {/*<span style={{ width: '30%' }}>{ item.author }</span>*/}
-            {/*<span style={{ width: '10%' }}>{ item.num_comments }</span>*/}
-            {/*<span style={{ width: '10%' }}>{ item.points }</span>*/}
-            {/*<span style={{ width: '10%' }}>*/}
-                {/*<Button*/}
-                    {/*onClick={() => onDismiss(item.objectID)}*/}
-                    {/*className="button-inline"*/}
-                {/*>*/}
-                    {/*Отбросить*/}
-                {/*</Button>*/}
-            {/*</span>*/}
-        {/*</div>*/}
-    {/*) }*/}
-{/*</div>;*/}
+        </Button>
+    );
+};
 
 const Button = ({ onClick, className = '', children }) =>
     <button
@@ -262,8 +428,25 @@ const Button = ({ onClick, className = '', children }) =>
         { children }
     </button>;
 
+const Loading = () =>
+    <div>Загрузка...</div>;
+
+const withLoading = (Component) => ({ isLoading, ...rest }) =>
+    isLoading
+        ? <Loading/>
+        : <Component { ...rest } />;
+
+const ButtonWithLoading = withLoading(Button);
+
+
 export default App;
 
+export {
+    Button,
+    Search,
+    Table,
+    updateSearchTopStoriesState
+}
 
 
 
